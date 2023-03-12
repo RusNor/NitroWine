@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+
+. "$(dirname $(readlink -f "$0"))/runlib"
+
+rm -rf "${WINE_PATH}/data/wine"
+
+if [ -d "/usr/share/steam/compatibilitytools.d/ge-proton/files" ]; then
+    ln -sf "/usr/share/steam/compatibilitytools.d/ge-proton/files" "${WINE_PATH}/data/wine"
+else
+    if [ ! -f "${WINE_PATH}/data/wine/bin/wine" ]; then
+        export FTP_URL="https://github.com/GloriousEggroll/proton-ge-custom/releases/download/GE-Proton"${GE_VER}"/GE-Proton"${GE_VER}".tar.gz"
+        wget -c -t 5 -w 2 "${FTP_URL}" --output-document="${WINE_PATH}/data/tmp/GE-Proton"${GE_VER}".tar.gz" &&
+        tar -xf "${WINE_PATH}/data/tmp/GE-Proton"${GE_VER}".tar.gz" -C "${WINE_PATH}/data/tmp" &&
+        for copy_dir in bin lib lib64 share ; do
+            cp -fr "${WINE_PATH}/data/tmp/GE-Proton"${GE_VER}"/files/${copy_dir}" "${WINE_PATH}/data/wine"
+        done
+        cp -fr "${WINE_PATH}/data/tmp/GE-Proton"${GE_VER}"/version" "${WINE_PATH}/data/wine" &&
+        rm -fr "${WINE_PATH}/data/tmp/GE-Proton"${GE_VER}".tar.gz" &&
+        rm -fr "${WINE_PATH}/data/tmp/GE-Proton"${GE_VER}""
+    fi
+
+    cd "${WINE_PATH}/data/wine/share/wine"
+    sed -i '/\AppDefaults\\/g; /HKCU,Software\\Valve\\/g; /HKLM,Software\\Wow6432Node\\lucasarts/g; /HKLM,Software\\Wow6432Node\\Valve\\Steam/g; /HKCR,steam\\/g' wine.inf
+
+    chmod -R 775 "${WINE_PATH}/data/wine"
+
+    export RM_DLL="${WINE_PATH}/data/wine"
+
+    rm -fr "${RM_DLL}/share/default_pfx"
+    rm -fr "${RM_DLL}/bin/cabextract"
+    rm -fr "${RM_DLL}"*/lib*/*steam*
+    rm -fr "${RM_DLL}"*/lib*/wine/*steam*
+    rm -fr "${RM_DLL}"*/lib*/wine/*/*steam*
+fi
+
+if [ ! -d "${WINE_PATH}/data/pfx/drive_c" ]; then
+    unsquashfs -d "${WINE_PATH}/data/pfx" "/opt/lwrap/prefix_backups/defprefix.xz.lwpfx"
+fi
+
+name_desktop="NitroWine-Menu"
+echo "[Desktop Entry]" > "${HOME}/.local/share/applications/${name_desktop}.desktop"
+echo "Name=${name_desktop}" >> "${HOME}/.local/share/applications/${name_desktop}.desktop"
+echo "Exec=env ${WINE_PATH}/data/scripts/start %f" >> "${HOME}/.local/share/applications/${name_desktop}.desktop"
+echo "Comment=Launch Windows applications on Linux operating systems" >> "${HOME}/.local/share/applications/${name_desktop}.desktop"
+echo "Type=Application" >> "${HOME}/.local/share/applications/${name_desktop}.desktop"
+echo "MimeType=application/x-wine-extension-msp;application/x-msi;application/x-ms-dos-executable;" >> "${HOME}/.local/share/applications/${name_desktop}.desktop"
+echo "Categories=Game" >> "${HOME}/.local/share/applications/${name_desktop}.desktop"
+echo "Icon=${WINE_PATH}/data/img/w.png" >> "${HOME}/.local/share/applications/${name_desktop}.desktop"
+chmod +x "${HOME}/.local/share/applications/${name_desktop}.desktop"
+
+name_desktop="NitroWine-Run"
+echo "[Desktop Entry]" > "${HOME}/.local/share/applications/${name_desktop}.desktop"
+echo "Name=${name_desktop}" >> "${HOME}/.local/share/applications/${name_desktop}.desktop"
+echo "Exec=env ${WINE_PATH}/data/scripts/run %f" >> "${HOME}/.local/share/applications/${name_desktop}.desktop"
+echo "Comment=Launch Windows applications on Linux operating systems" >> "${HOME}/.local/share/applications/${name_desktop}.desktop"
+echo "Type=Application" >> "${HOME}/.local/share/applications/${name_desktop}.desktop"
+echo "MimeType=application/x-wine-extension-msp;application/x-msi;application/x-ms-dos-executable;" >> "${HOME}/.local/share/applications/${name_desktop}.desktop"
+echo "Categories=Game" >> "${HOME}/.local/share/applications/${name_desktop}.desktop"
+echo "NoDisplay=true" >> "${HOME}/.local/share/applications/${name_desktop}.desktop"
+echo "Icon=${WINE_PATH}/data/img/w.png" >> "${HOME}/.local/share/applications/${name_desktop}.desktop"
+chmod +x "${HOME}/.local/share/applications/${name_desktop}.desktop"
+
+echo "##################################"
+echo "#  Install NitroWine successful  #"
+echo "##################################"
+
+exit 0

@@ -1,0 +1,444 @@
+#!/usr/bin/env bash
+
+cd "$(dirname "`readlink -f "$0"`")"
+export link="$(pwd)"
+cd "${link}/../../"
+export WINE_PATH="$(pwd)"
+export NAME_EXE="$(readlink -f "$1")"
+
+export NW_VER="v1.6"
+export GE_VER="7-49"
+
+mkdir -p "${WINE_PATH}/data/pfx"
+#mkdir -p "${WINE_PATH}/data/wine"
+mkdir -p "${WINE_PATH}/data/tmp"
+mkdir -p "${WINE_PATH}/Applications"
+mkdir -p "${WINE_PATH}/data/tmp/vkd3d_cache"
+mkdir -p "/home/${USER}/.local/share/applications"
+
+if [ ! -d "${HOME}/Applications" ]; then
+    ln -sf "${WINE_PATH}/Applications" "${HOME}/Applications"
+fi
+
+try_ld_library_path_update () {
+
+    if [ ! -z "${LD_LIBRARY_PATH}" ]; then
+        export LD_LIBRARY_PATH="${1}:${LD_LIBRARY_PATH}"
+    else
+        export LD_LIBRARY_PATH="${1}"
+    fi
+
+}
+
+try_winedllpath_update () {
+
+    if [ ! -z "${WINEDLLPATH}" ]; then
+        export WINEDLLPATH="${1}:${WINEDLLPATH}"
+    else
+        export WINEDLLPATH="${1}"
+    fi
+
+}
+
+try_path_update () {
+
+    if [ ! -z "${PATH}" ]; then
+        export PATH="${1}:${PATH}"
+    else
+        export PATH="${1}"
+    fi
+
+}
+
+export WINEDIR="${WINE_PATH}/data/wine"
+
+try_ld_library_path_update "${WINEDIR}/lib"
+try_ld_library_path_update "${WINEDIR}/lib64"
+
+try_winedllpath_update "${WINEDIR}/lib/wine"
+try_winedllpath_update "${WINEDIR}/lib64/wine"
+try_winedllpath_update "${WINEDIR}/lib/wine/i386-windows"
+try_winedllpath_update "${WINEDIR}/lib/wine/x86_64-windows"
+try_winedllpath_update "${WINEDIR}/lib64/wine/x86_64-windows"
+
+try_path_update "${WINEDIR}/bin"
+
+export WINEDEBUG="-all"
+export WINEARCH="win64"
+export WINELOADER="${WINEDIR}/bin/wine"
+export WINESERVER="${WINEDIR}/bin/wineserver"
+export WINEPREFIX="${WINE_PATH}/data/pfx"
+
+RUN_WINE () {
+
+    if [ ! -f "${WINE_PATH}/data/pfx/drive_c/windows/system32/start.exe" ]; then
+        "${WINELOADER}" wineboot
+        "${WINESERVER}" -w
+        chmod -R 775 "${WINE_PATH}/data/pfx"
+    fi
+
+    if [ ! -d "${WINE_PATH}/data/pfx/drive_c/users/${USER}" ]; then
+        ln -sf "${WINE_PATH}/data/pfx/drive_c/users/steamuser" "${WINE_PATH}/data/pfx/drive_c/users/${USER}"
+    fi
+
+    if [ ! -d "${WINEPREFIX}/drive_c/users/steamuser/Application Data" ]; then
+        ln -sf "${WINEPREFIX}/drive_c/users/steamuser/AppData/Roaming" "${WINEPREFIX}/drive_c/users/steamuser/Application Data"
+    fi
+
+    if [ ! -d "${WINEPREFIX}/drive_c/users/steamuser/My Documents" ]; then
+        ln -sf "${WINEPREFIX}/drive_c/users/steamuser/Documents" "${WINEPREFIX}/drive_c/users/steamuser/My Documents"
+    fi
+
+    if [ "$(cat ${WINEPREFIX}/.update-timestamp)" != "disable" ]; then
+        echo disable > "${WINEPREFIX}/.update-timestamp"
+    fi
+
+    if [ ! -d "${WINEPREFIX}/drive_c/users/Public/Documents/Steam" ]; then
+        mkdir -p "${WINEPREFIX}/drive_c/users/Public/Documents/Steam"
+    fi
+
+    if [ ! -d "${WINEPREFIX}/drive_c/users/steamuser/Documents/Steam" ]; then
+        mkdir -p "${WINEPREFIX}/drive_c/users/steamuser/Documents/Steam"
+    fi
+
+    if [ ! -f "${WINEPREFIX}/drive_c/windows/Fonts/"arial.ttf ]; then
+        mkdir -p "${WINEPREFIX}/drive_c/windows/Fonts"
+        ln -sf "${WINEDIR}/share/fonts/"LiberationSans-Regular.ttf "${WINEPREFIX}/drive_c/windows/Fonts/"arial.ttf
+        ln -sf "${WINEDIR}/share/fonts/"LiberationSans-Bold.ttf "${WINEPREFIX}/drive_c/windows/Fonts/"arialbd.ttf
+        ln -sf "${WINEDIR}/share/fonts/"LiberationSerif-Regular.ttf "${WINEPREFIX}/drive_c/windows/Fonts/"times.ttf
+        ln -sf "${WINEDIR}/share/fonts/"LiberationMono-Regular.ttf "${WINEPREFIX}/drive_c/windows/Fonts/"cour.ttf
+        ln -sf "${WINEDIR}/share/fonts/"LiberationMono-Bold.ttf "${WINEPREFIX}/drive_c/windows/Fonts/"courbd.ttf
+        ln -sf "${WINEDIR}/share/fonts/"msyh.ttf "${WINEPREFIX}/drive_c/windows/Fonts/"msyh.ttf
+        ln -sf "${WINEDIR}/share/fonts/"malgun.ttf "${WINEPREFIX}/drive_c/windows/Fonts/"malgun.ttf
+        ln -sf "${WINEDIR}/share/fonts/"micross.ttf "${WINEPREFIX}/drive_c/windows/Fonts/"micross.ttf
+        ln -sf "${WINEDIR}/share/fonts/"nirmala.ttf "${WINEPREFIX}/drive_c/windows/Fonts/"nirmala.ttf
+        ln -sf "${WINEDIR}/share/fonts/"simsun.ttc "${WINEPREFIX}/drive_c/windows/Fonts/"simsun.ttc
+        ln -sf "${WINEDIR}/share/fonts/"msgothic.ttc "${WINEPREFIX}/drive_c/windows/Fonts/"msgothic.ttc
+        ln -sf "${WINEDIR}/share/wine/fonts/"tahoma.ttf "${WINEPREFIX}/drive_c/windows/Fonts/"tahoma.ttf
+    fi
+
+    set -a
+    . "${WINE_PATH}/data/scripts/settings"
+    set +a
+
+    export __GL_SHADER_DISK_CACHE_PATH="${WINE_PATH}/data/tmp"
+    export __GL_SHADER_DISK_CACHE_SIZE=50000000000
+    export __GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1
+    export __GL_SHADER_DISK_CACHE=1
+    export MESA_SHADER_CACHE_DIR="${WINE_PATH}/data/tmp"
+
+    if [ "${USE_GAMEMODE}" == 1 ]; then
+        export RUN_GAMEMODE="gamemoderun"
+    fi
+
+    if [ "${USE_MANGOHUD}" == 1 ]; then
+        export MANGOHUD_LOG_LEVEL=off
+        export MANGOHUD_CONFIG="cpu_stats,cpu_temp,core_load,cpu_mhz,cpu_color=2e97cb,\
+        cpu_text=CPU,gpu_stats,gpu_temp,gpu_core_clock,gpu_mem_clock,vulkan_driver,gpu_name,\
+        gpu_color=2e9762,gpu_text=GPU,vram,vram_color=ad64c1,ram,ram_color=c26693,io_color=a491d3,\
+        frame_timing=1,frametime_color=00ff00,time,arch,wine,wine_color=eb5b5b,engine_color=eb5b5b,\
+        media_player_color=ffffff,background_alpha=0.2,font_size=20,background_color=020202,position=top-right,\
+        text_color=ffffff,toggle_hud=Shift_R+F12,media_player_name=spotify,resolution,gamemode,vkbasalt,fps_limit=${USE_FPS_LIMIT}+0,\
+        version,toggle_fps_limit=Shift_L+F1,version,battery"
+        export RUN_MANGOHUD="mangohud"
+    fi
+
+    if [ "${USE_FSR}" == 1 ]; then
+        export WINE_FULLSCREEN_FSR=1
+        export WINE_FULLSCREEN_FSR_STRENGTH=1
+        export WINE_FULLSCREEN_INTEGER_SCALING=0
+        export WINE_FULLSCREEN_FSR_MODE="ultra"
+    #    export WINE_FULLSCREEN_FSR_CUSTOM_MODE=1234x4321
+    #    ultra
+    #    quality
+    #    balanced
+    #    performance
+    else
+        export WINE_FULLSCREEN_FSR=0
+        unset WINE_FULLSCREEN_FSR_STRENGTH WINE_FULLSCREEN_INTEGER_SCALING WINE_FULLSCREEN_FAKE_CURRENT_RES
+    fi
+
+    if [ "${USE_GSTREAMER}" == 1 ]; then
+        export GST_DEBUG="0:WARNING"
+        export WINE_GST_REGISTRY_DIR="${WINE_PATH}/data/tmp"
+        export MEDIACONV_AUDIO_DUMP_FILE="${WINE_PATH}/data/tmp/audio.foz"
+        export MEDIACONV_AUDIO_TRANSCODED_FILE="${WINE_PATH}/data/tmp/transcoded_audio.foz"
+        export MEDIACONV_VIDEO_DUMP_FILE="${WINE_PATH}/data/tmp/video.foz"
+        export MEDIACONV_VIDEO_TRANSCODED_FILE="${WINE_PATH}/data/tmp/transcoded_video.foz"
+        export GST_PLUGIN_SYSTEM_PATH_1_0="${WINE_PATH}/data/wine/lib64/gstreamer-1.0:${WINE_PATH}/data/wine/lib/gstreamer-1.0"
+    fi
+
+    if [ "${USE_VKBASALT}" == 1 ]; then
+        export ENABLE_VKBASALT=1
+        export VKBASALT_LOG_LEVEL="none"
+        export VKBASALT_LOG_FILE="${WINE_PATH}/data/tmp/vkBasalt.log"
+        export VKBASALT_CONFIG_FILE="${WINE_PATH}/data/utils/config/vkBasalt.conf"
+    fi
+
+    if [ "${USE_OPENGL}" == "1" ]; then
+
+        if ! cp -f "${WINE_PATH}/data/wine/lib/wine/fakedlls/dxgi.dll" "${WINEPREFIX}/drive_c/windows/syswow64"; then
+             cp -f "${WINE_PATH}/data/wine/lib/wine/i386-windows/dxgi.dll" "${WINEPREFIX}/drive_c/windows/syswow64"
+        fi
+
+        if ! cp -f "${WINE_PATH}/data/wine/lib64/wine/fakedlls/dxgi.dll" "${WINEPREFIX}/drive_c/windows/system32"; then
+             cp -f "${WINE_PATH}/data/wine/lib64/wine/x86_64-windows/dxgi.dll" "${WINEPREFIX}/drive_c/windows/system32"
+        fi
+
+        for wine_build_dll in d3d11 d3d10 d3d10core d3d10_1 d3d9 ; do
+            if ! cp -f "${WINE_PATH}/data/wine/lib/wine/${wine_build_dll}.dll" "${WINEPREFIX}/drive_c/windows/syswow64"; then
+                 cp -f "${WINE_PATH}/data/wine/lib/wine/i386-windows/${wine_build_dll}.dll" "${WINEPREFIX}/drive_c/windows/syswow64"
+            fi
+
+            if ! cp -f "${WINE_PATH}/data/wine/lib64/wine/${wine_build_dll}.dll" "${WINEPREFIX}/drive_c/windows/system32"; then
+                 cp -f "${WINE_PATH}/data/wine/lib64/wine/x86_64-windows/${wine_build_dll}.dll" "${WINEPREFIX}/drive_c/windows/system32"
+            fi
+        done
+
+        export WINEDLLOVERRIDES="d3d11,d3d10,d3d10core,d3d10_1,d3d9,dxgi=b;d3d12,libvkd3d-proton-utils-3="
+
+        echo "OpenGL mode"
+
+        notify-send -a "NitroWine" "OpenGL mode"
+
+        START_EXE="$@"
+        PATH_TO_GAME="$(dirname "${START_EXE}")"
+        cd "${PATH_TO_GAME}"
+
+        ${RUN_GAMEMODE} ${RUN_MANGOHUD} "${WINELOADER}" "${START_EXE}"
+
+    else
+
+        for wine_dxvk_dll in d3d11 d3d10 d3d10core d3d10_1 d3d9 dxgi ; do
+            cp -f "${WINE_PATH}/data/wine/lib/wine/dxvk/${wine_dxvk_dll}.dll" "${WINEPREFIX}/drive_c/windows/syswow64"
+            cp -f "${WINE_PATH}/data/wine/lib64/wine/dxvk/${wine_dxvk_dll}.dll" "${WINEPREFIX}/drive_c/windows/system32"
+        done
+
+        for wine_vkd3d_dll in d3d12 libvkd3d-proton-utils-3 ; do
+            cp -f "${WINE_PATH}/data/wine/lib/wine/vkd3d-proton/${wine_vkd3d_dll}.dll" "${WINEPREFIX}/drive_c/windows/syswow64"
+            cp -f "${WINE_PATH}/data/wine/lib64/wine/vkd3d-proton/${wine_vkd3d_dll}.dll" "${WINEPREFIX}/drive_c/windows/system32"
+        done
+
+        export WINEDLLOVERRIDES="libvkd3d-proton-utils-3,d3d12,d3d11,d3d10,d3d10core,d3d10_1,d3d9,dxgi=n"
+
+        export __GL_DXVK_OPTIMIZATIONS=1
+        export DXVK_CONFIG_FILE="${WINE_PATH}/data/utils/config/dxvk.conf"
+        export DXVK_STATE_CACHE_PATH="${WINE_PATH}/data/tmp/dxvk_cache"
+        export DXVK_STATE_CACHE=1
+        export DXVK_LOG_LEVEL="none"
+        export DXVK_LOG_PATH="none"
+
+        export VKD3D_SHADER_CACHE_PATH="${WINE_PATH}/data/tmp/vkd3d_cache"
+        export VKD3D_FEATURE_LEVEL="12_0"
+        export VKD3D_SHADER_DEBUG="none"
+        export VKD3D_DEBUG="none"
+
+        echo "VULKAN mode"
+
+        notify-send -a "NitroWine" "VULKAN mode"
+
+        START_EXE="$@"
+        PATH_TO_GAME="$(dirname "${START_EXE}")"
+        cd "${PATH_TO_GAME}"
+
+        ${RUN_GAMEMODE} ${RUN_MANGOHUD} "${WINELOADER}" "${START_EXE}"
+
+    fi
+
+}
+
+LAUNCH_GAME () {
+
+    if [ ! -z "${NAME_EXE}" ]; then
+        RUN_WINE "$@"
+    else
+        zenity --info --title "" --width=150 --text "Oops! nothing to RUN"
+    fi
+
+}
+
+CREATE_SHORTCUT () {
+
+    if [ ! -z "${NAME_EXE}" ]; then
+        STARTWINE_EXE="${NAME_EXE}"
+    else
+        STARTWINE_EXE=$(zenity --file-selection --file-filter=""*.exe" "*.msi" "*.EXE" "*.bat"" \
+        --title="NitroWine" --filename="${HOME}/")
+        if [ $? -eq 1 ]; then
+            exit 1
+        fi
+
+    fi
+
+    STARTWINE_NAME="$(basename "${STARTWINE_EXE}" | sed 's/\.exe//gi' | sed 's/ /-/g')"
+    STARTWINE_PATH="$(cd "$(dirname "${STARTWINE_EXE}")" >/dev/null 2>&1 && pwd)"
+
+    if [ -x "`which wrestool 2>/dev/null`" ]; then
+        cd "${STARTWINE_PATH}"
+        wrestool -x -t14 "${STARTWINE_EXE}" > "${STARTWINE_EXE}.ico"
+        icotool -x "${STARTWINE_EXE}.ico"
+        cp "$(ls -S -1 "${STARTWINE_EXE}"*.png | head -n 1)" "${STARTWINE_EXE}.png"
+        cp -f "${STARTWINE_EXE}.png" "${WINE_PATH}/data/img/${STARTWINE_NAME}.png"
+        rm -f "${STARTWINE_PATH}/"*.ico
+        rm -f "${STARTWINE_PATH}/"*.png
+    fi
+
+    cd "${WINE_PATH}/data/img"
+    convert -resize 256X256  ${STARTWINE_NAME}.png ${STARTWINE_NAME}.png
+
+    NW_NEW_DESKTOP_NAME="$(zenity --entry --title="" --text="Enter new name or \nPress  OK  to use default name" --entry-text "${STARTWINE_NAME}")"
+
+    if [ $? -eq 1 ]; then
+        name_desktop="${STARTWINE_NAME}"
+    else
+        name_desktop="${NW_NEW_DESKTOP_NAME}"
+    fi
+
+    echo "[Desktop Entry]" > "${WINE_PATH}/Applications/${name_desktop}.desktop"
+    echo "Name=${NW_NEW_DESKTOP_NAME}" >> "${WINE_PATH}/Applications/${name_desktop}.desktop"
+    echo "Exec=env "\"${WINE_PATH}/data/scripts/run\" \"${STARTWINE_EXE}\""" >> "${WINE_PATH}/Applications/${name_desktop}.desktop"
+    echo "Type=Application" >> "${WINE_PATH}/Applications/${name_desktop}.desktop"
+    echo "Categories=Game" >> "${WINE_PATH}/Applications/${name_desktop}.desktop"
+    echo "Icon=${WINE_PATH}/data/img/${STARTWINE_NAME}.png" >> "${WINE_PATH}/Applications/${name_desktop}.desktop"
+    chmod +x "${WINE_PATH}/Applications/${name_desktop}.desktop"
+
+    `zenity --question --title "NitroWine" --text "Shortcut ${NW_NEW_DESKTOP_NAME} created in Applications HOME directory.\nAdd shortcut ${NW_NEW_DESKTOP_NAME} to MAIN MENU ?" --no-wrap ` > /dev/null 2>&1
+
+    if [ $? -eq "0" ]; then
+        cp -f "${WINE_PATH}/Applications/${name_desktop}.desktop" "/home/${USER}/.local/share/applications"
+    fi
+
+}
+
+WINEFILE () {
+
+    "${WINELOADER}" "explorer"
+
+}
+
+WINECFG () {
+
+    "${WINELOADER}" "winecfg"
+
+}
+
+CLEAR_PFX () {
+
+    `zenity --question --title "NitroWine" --width=200 --text "Want to clear the Prefix" --no-wrap ` > /dev/null 2>&1
+
+    if [ $? -eq "0" ]; then
+        rm -rf "$WINEPREFIX/registry_"*
+        rm -rf "$WINEPREFIX/"*.reg
+        rm -rf "$WINEPREFIX/"*.log
+        rm -rf "$WINEPREFIX/.update-timestamp"
+        rm -rf "$WINEPREFIX/drive_c/.windows-serial"
+        rm -rf "$WINEPREFIX/drive_c/windows/"
+        rm -rf "$WINEPREFIX/drive_c/ProgramData/Setup"
+        rm -rf "$WINEPREFIX/drive_c/ProgramData/Windows"
+        rm -rf "$WINEPREFIX/drive_c/ProgramData/WindowsTask"
+        rm -rf "$WINEPREFIX/drive_c/ProgramData/Package Cache"
+        rm -rf "$WINEPREFIX/drive_c/users/Public/Local Settings/Application Data/Microsoft"
+        rm -rf "$WINEPREFIX/drive_c/users/Public/Local Settings/Application Data/Temp"
+        rm -rf "$WINEPREFIX/drive_c/users/Public/Local Settings/Temporary Internet Files"
+        rm -rf "$WINEPREFIX/drive_c/users/Public/Application Data/Microsoft"
+        rm -rf "$WINEPREFIX/drive_c/users/Public/Application Data/wine_gecko"
+        rm -rf "$WINEPREFIX/drive_c/users/Public/Temp"
+        rm -rf "$WINEPREFIX/drive_c/users/user/Local Settings/Application Data/Microsoft"
+        rm -rf "$WINEPREFIX/drive_c/users/user/Local Settings/Application Data/Temp"
+        rm -rf "$WINEPREFIX/drive_c/users/user/Local Settings/Temporary Internet Files"
+        rm -rf "$WINEPREFIX/drive_c/users/user/Application Data/Microsoft"
+        rm -rf "$WINEPREFIX/drive_c/users/user/Application Data/wine_gecko"
+        rm -rf "$WINEPREFIX/drive_c/users/user/Temp"
+        rm -rf "$WINEPREFIX/drive_c/Program Files/Internet Explorer"
+        rm -rf "$WINEPREFIX/drive_c/Program Files/Windows Media Player"
+        rm -rf "$WINEPREFIX/drive_c/Program Files/Windows NT"
+        rm -rf "$WINEPREFIX/drive_c/Program Files/Common Files"
+        rm -rf "$WINEPREFIX/drive_c/Program Files (x86)/Internet Explorer"
+        rm -rf "$WINEPREFIX/drive_c/Program Files (x86)/Common Files"
+        rm -rf "$WINEPREFIX/drive_c/Program Files (x86)/Windows Media Player"
+        rm -rf "$WINEPREFIX/drive_c/Program Files (x86)/Windows NT"
+        rm -rf "${WINE_PATH}/data/tmp/gl_shader_cache/"*
+        rm -rf "${WINE_PATH}/data/tmp/log/"*
+        rm -rf "${WINE_PATH}/data/tmp/"*.log
+        rm -rf "${WINE_PATH}/data/tmp/dxvk_cache/"*
+        rm -rf "${WINE_PATH}/data/tmp/gstreamer-1.0/"*
+        rm -rf "$HOME/.cache/gstreamer-1.0/"*
+        rm -rf "${WINE_PATH}/data/tmp/mesa_shader_cache/"*
+    fi
+
+}
+
+WINETRICKS () {
+
+    STOP &
+
+    export SW_XTERM="xterm -geometry 80x20 -e"
+
+    if [ -f "${WINE_PATH}/data/tmp/winetricks" ]; then
+        rm -f "${WINE_PATH}/data/tmp/winetricks"
+    fi
+
+    ${SW_XTERM} wget -c -t 5 -w 2 --output-document="${WINE_PATH}/data/tmp/winetricks" "https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks"
+
+    chmod +x "${WINE_PATH}/data/tmp/winetricks"
+
+    unset LD_LIBRARY_PATH
+
+    `zenity --question --ok-label "INSTALL RECOMMENDED LIBRARIES" --cancel-label "RUN WINETRICKS" \
+    --title "NitroWine" --width=200 --text "" --no-wrap ` > /dev/null 2>&1
+
+    if [ $? -eq "0" ]; then
+        export WINE="$WINELOADER"
+        ${SW_XTERM} "${WINE_PATH}/data/tmp/winetricks" -q -f cmd d3dcompiler_42 \
+        d3dcompiler_43 d3dcompiler_47 d3dx10 d3dx10_43 d3dx11_42 d3dx11_43 d3dx9 \
+        mfc120 mfc42 msls31 msvcirt physx riched20 usp10 vb6run vcrun2010 vcrun2012 vcrun2013 vcrun2019 vcrun6 \
+        vcrun6sp6 win10 &&
+        zenity --info --title "NitroWine" --width=200 --text "libraries Installed successfully"
+    else
+        export WINE="$WINELOADER"
+        ${SW_XTERM} "${WINE_PATH}/data/tmp/winetricks" -q -f
+    fi
+
+}
+
+STOP () {
+
+    wine_pids="$(ls -l /proc/*/exe 2>/dev/null | grep -E 'wine(64)?-preloader|wineserver' | awk -F/ '{print $3}')"
+    if  ! [ -z "${wine_pids}" ]; then
+        kill -n 9 ${wine_pids}
+    fi
+
+    notify-send -a "NitroWine" "kill wine porocesses"
+
+    exit
+
+}
+
+SETTINGS () {
+
+    settings=`zenity --list --list --checklist --title  "SETTINGS" --text "" \
+    --column="" --column="" --column="" --column="" --hide-header --width=900 --height=500 \
+    FALSE "USE_MANGOHUD_DLSYM=1" "${SET_1}" "system monitoring in opengl" \
+    TRUE "USE_MANGOHUD=1" "${SET_2}" "system monitoring in DXVK  VKD3D" \
+    TRUE "USE_GAMEMODE=1" "${SET_3}" "set of optimisations be temporarily applied a game process" \
+    FALSE "USE_FPS_LIMIT=75" "${SET_4}" "limit of fps to 75 frames in games" \
+    FALSE "USE_OPENGL=1" "${SET_5}" "force to use OPENGL" \
+    TRUE "USE_GSTREAMER=1" "${SET_6}" "gstreamer is a library for constructing graphs of media-handling components" \
+    FALSE "FSYNC=1" "${SET_7}" "Improving frame rates and responsiveness with scheduling policies" \
+    FALSE "ESYNC=1" "${SET_8}" "performance for some games, especially ones that rely heavily on the CPU" \
+    TRUE "USE_FSR=1" "${SET_9}" "fidelityFX super resolution" \
+    TRUE "LARGE_ADDRESS_AWARE=1" "${SET_12}" "allocate to a 32-bit application more than 2 GB of RAM" \
+    FALSE "STAGING_WRITECOPY=1" "${SET_13}" "helps circumvent some types of protection in old games" \
+    TRUE "STAGING_SHARED_MEMORY=1" "${SET_14}" "Increases performance by 5-10%" \
+    FALSE "DXVK_HUD=1" "${SET_15}" "system monitoring in DXVK" \
+    TRUE "USE_VKBASALT=1" "${SET_16}" "Vulkan post processing layer to enhance the visual graphics of games" \
+    TRUE "DXVK_ASYNC=1" "${SET_17}" "async pipelines are written to the state cache" `
+
+    if [ ! -z "$settings" ]; then
+        echo "${settings}" > "${WINE_PATH}/data/scripts/settings"
+        sed -i "s/|/\\n/g" "${WINE_PATH}/data/scripts/settings"
+        zenity --title "" --info --text "Settings changed and saved" --width=200
+    fi
+
+}
+
